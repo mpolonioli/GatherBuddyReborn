@@ -2363,7 +2363,12 @@ namespace GatherBuddy.AutoGather
         {
             try
             {
-                if (GatherBuddy.Config.AutoGatherConfig.AutoRetainerDelayForTimedNodes)
+                // Only short-circuit on timed nodes when AR MultiMode has NOT yet been started by GBR.
+                // If GBR already triggered AR and (likely) switched characters, bailing here strands
+                // both: AR's pathing to the retainer bell gets interrupted and GBR tries to gather a
+                // node that lives on the original character's territory. Stay in the wait state so
+                // the relog-back branch below can run once AR finishes.
+                if (GatherBuddy.Config.AutoGatherConfig.AutoRetainerDelayForTimedNodes && !_autoRetainerMultiModeEnabled)
                 {
                     if (_currentGatherTarget != null)
                     {
@@ -2373,13 +2378,13 @@ namespace GatherBuddy.AutoGather
                             return false;
                         }
                     }
-                    
+
                     var nextItem = _activeItemList.GetNextOrDefault();
                     if (nextItem != default)
                     {
                         if (nextItem.Node?.NodeType is NodeType.Legendary or NodeType.Unspoiled)
                         {
-                            if (nextItem.Time.InRange(AdjustedServerTime) && 
+                            if (nextItem.Time.InRange(AdjustedServerTime) &&
                                 !_activeItemList.DebugVisitedTimedLocations.ContainsKey(nextItem.Node))
                             {
                                 return false;
