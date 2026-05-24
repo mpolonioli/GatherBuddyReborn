@@ -2363,12 +2363,16 @@ namespace GatherBuddy.AutoGather
         {
             try
             {
-                // Only short-circuit on timed nodes when AR MultiMode has NOT yet been started by GBR.
-                // If GBR already triggered AR and (likely) switched characters, bailing here strands
-                // both: AR's pathing to the retainer bell gets interrupted and GBR tries to gather a
-                // node that lives on the original character's territory. Stay in the wait state so
-                // the relog-back branch below can run once AR finishes.
-                if (GatherBuddy.Config.AutoGatherConfig.AutoRetainerDelayForTimedNodes && !_autoRetainerMultiModeEnabled)
+                // Only short-circuit on timed nodes when no AR cycle is committed AND no relog is
+                // pending. `_autoRetainerMultiModeEnabled` covers the active AR phase; once AR
+                // finishes, the else-branch below clears it _before_ the Lifestream relog completes,
+                // so we also have to gate on `_originalCharacterNameWorld` (cleared only after the
+                // player is confirmed back on the original character). Without this second gate, a
+                // timed-node window opening during the relog would bail out of the wait state and
+                // leave GBR gathering on the wrong character.
+                if (GatherBuddy.Config.AutoGatherConfig.AutoRetainerDelayForTimedNodes
+                    && !_autoRetainerMultiModeEnabled
+                    && string.IsNullOrEmpty(_originalCharacterNameWorld))
                 {
                     if (_currentGatherTarget != null)
                     {
