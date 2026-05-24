@@ -2363,7 +2363,16 @@ namespace GatherBuddy.AutoGather
         {
             try
             {
-                if (GatherBuddy.Config.AutoGatherConfig.AutoRetainerDelayForTimedNodes)
+                // Only short-circuit on timed nodes when no AR cycle is committed AND no relog is
+                // pending. `_autoRetainerMultiModeEnabled` covers the active AR phase; once AR
+                // finishes, the else-branch below clears it _before_ the Lifestream relog completes,
+                // so we also have to gate on `_originalCharacterNameWorld` (cleared only after the
+                // player is confirmed back on the original character). Without this second gate, a
+                // timed-node window opening during the relog would bail out of the wait state and
+                // leave GBR gathering on the wrong character.
+                if (GatherBuddy.Config.AutoGatherConfig.AutoRetainerDelayForTimedNodes
+                    && !_autoRetainerMultiModeEnabled
+                    && string.IsNullOrEmpty(_originalCharacterNameWorld))
                 {
                     if (_currentGatherTarget != null)
                     {
@@ -2373,13 +2382,13 @@ namespace GatherBuddy.AutoGather
                             return false;
                         }
                     }
-                    
+
                     var nextItem = _activeItemList.GetNextOrDefault();
                     if (nextItem != default)
                     {
                         if (nextItem.Node?.NodeType is NodeType.Legendary or NodeType.Unspoiled)
                         {
-                            if (nextItem.Time.InRange(AdjustedServerTime) && 
+                            if (nextItem.Time.InRange(AdjustedServerTime) &&
                                 !_activeItemList.DebugVisitedTimedLocations.ContainsKey(nextItem.Node))
                             {
                                 return false;
