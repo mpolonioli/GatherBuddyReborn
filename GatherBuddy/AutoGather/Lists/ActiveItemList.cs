@@ -89,7 +89,7 @@ namespace GatherBuddy.AutoGather.Lists
                 DoUpdate();
 
             return _currentItem = _gatherableItems
-                .FirstOrDefault(x => x.Time.InRange(_lastUpdateTime) && NeedsGathering(x));
+                .FirstOrDefault(x => x.Time.InRange(_lastUpdateTime) && !IsExpiringSoon(x) && NeedsGathering(x));
         }
 
         /// <summary>
@@ -140,6 +140,21 @@ namespace GatherBuddy.AutoGather.Lists
                 _visitedTimedNodes[x.Node] = x.Time;
             if (x.Node?.NodeType == NodeType.Clouded)
                 _consumedCloudedNode = EnhancedCurrentWeather.GetCurrentWeatherId() == x.Node.UmbralWeather.Id;
+        }
+
+        /// <summary>
+        /// Returns true if the target is a timed node that is currently up but whose uptime ends within the
+        /// configured "Ignore Nodes Expiring Within" threshold. Untimed (Always) nodes are never considered expiring.
+        /// </summary>
+        private static bool IsExpiringSoon(GatherTarget target)
+        {
+            var threshold = GatherBuddy.Config.AutoGatherConfig.IgnoreNodesExpiringWithin;
+            if (threshold <= 0 || target.Time == TimeInterval.Always || target.Time == TimeInterval.Invalid)
+                return false;
+
+            // Real seconds of uptime remaining (measured against true server time, not the precog-adjusted time).
+            var remainingMs = target.Time.End - GatherBuddy.Time.ServerTime;
+            return remainingMs < (long)threshold * RealTime.MillisecondsPerSecond;
         }
 
         private bool NeedsGathering((IGatherable item, uint quantity) value)

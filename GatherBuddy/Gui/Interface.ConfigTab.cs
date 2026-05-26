@@ -255,6 +255,21 @@ public partial class Interface
             ImGuiUtil.HoverTooltip("How far in advance of the node actually being up GBR should consider the node to be up");
         }
 
+        public static void DrawIgnoreExpiringNodes()
+        {
+            ImGui.SetNextItemWidth(150);
+            var tmp = GatherBuddy.Config.AutoGatherConfig.IgnoreNodesExpiringWithin;
+            if (ImGui.DragInt("Ignore Nodes Expiring Within (Seconds)", ref tmp, 1, 0, 600))
+            {
+                GatherBuddy.Config.AutoGatherConfig.IgnoreNodesExpiringWithin = Math.Max(0, tmp);
+                GatherBuddy.Config.Save();
+            }
+
+            ImGuiUtil.HoverTooltip(
+                "Ignore a node that is currently up if its uptime ends within this many seconds. "
+              + "Useful with timed fish: avoids starting a long catch attempt on a node that is about to disappear. Set to 0 to disable.");
+        }
+
         public static void DrawExecutionDelay()
         {
             ImGui.SetNextItemWidth(150);
@@ -1515,6 +1530,7 @@ public partial class Interface
             new("Anti-Stuck Cooldown",                            ConfigFunctions.DrawAntiStuckCooldown),
             new("Stuck Threshold",                                ConfigFunctions.DrawStuckThreshold),
             new("Timed Node Precognition",                        ConfigFunctions.DrawTimedNodePrecog),
+            new("Ignore Nodes Expiring Within",                   ConfigFunctions.DrawIgnoreExpiringNodes),
             new("Execution delay Milliseconds",                   ConfigFunctions.DrawExecutionDelay),
             new("Enable Gathering Window Interaction",            ConfigFunctions.DrawAutoGatherBox),
             new("Disable map marker navigation",                  ConfigFunctions.DrawUseFlagBox),
