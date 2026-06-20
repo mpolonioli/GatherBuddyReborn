@@ -132,7 +132,7 @@ internal sealed partial class GatherBuddySettings
                       + "instead of only one item type.",
                         AutoCfg.AlwaysReduceAllItems, v => AutoCfg.AlwaysReduceAllItems = v);
                 }),
-                Custom("Wait for AutoRetainer multi-mode threshold seconds delay timed nodes", () =>
+                Custom("Wait for AutoRetainer multi-mode threshold seconds delay timed nodes leave The Diadem to process retainers", () =>
                 {
                     SettingRows.PluginSwitch("Wait for AutoRetainer multi-mode",
                         "Pause GBR automatically when AutoRetainer has retainers to process during multi-mode.",
@@ -149,6 +149,11 @@ internal sealed partial class GatherBuddySettings
                     SettingRows.Switch("Delay AutoRetainer for timed nodes",
                         "Wait to process retainers until after active and upcoming timed nodes are gathered.",
                         AutoCfg.AutoRetainerDelayForTimedNodes, v => AutoCfg.AutoRetainerDelayForTimedNodes = v);
+                    SettingRows.Switch("Leave The Diadem to process retainers",
+                        "AutoRetainer can not process retainers from inside The Diadem. "
+                      + "When enabled, GBR leaves the instance once a retainer is ready, runs multi-mode, then relogs back. "
+                      + "When disabled, retainers are only processed after gathering naturally takes you out of the Diadem.",
+                        AutoCfg.AutoRetainerLeaveDiadem, v => AutoCfg.AutoRetainerLeaveDiadem = v);
                 }),
                 Toggle("Diadem auto-aethercannon",
                     "Automatically target and fire the aethercannon at nearby enemies when the gauge is ready (200 or more). "
