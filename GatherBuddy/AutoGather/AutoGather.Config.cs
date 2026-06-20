@@ -18,6 +18,7 @@ namespace GatherBuddy.AutoGather
         public bool AutoRetainerMultiMode { get; set; } = false;
         public int AutoRetainerMultiModeThreshold { get; set; } = 300;
         public bool AutoRetainerDelayForTimedNodes { get; set; } = true;
+        public bool AutoRetainerLeaveDiadem { get; set; } = true;
         public float NavResetCooldown { get; set; } = 3.0f;
         public float NavResetThreshold { get; set; } = 2.0f;
         public bool ForceWalking { get; set; } = false;
