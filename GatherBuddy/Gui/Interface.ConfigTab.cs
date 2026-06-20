@@ -180,6 +180,14 @@ public partial class Interface
                 GatherBuddy.Config.AutoGatherConfig.AutoRetainerDelayForTimedNodes,
                 b => GatherBuddy.Config.AutoGatherConfig.AutoRetainerDelayForTimedNodes = b);
 
+        public static void DrawAutoretainerLeaveDiademBox()
+            => DrawCheckbox("Leave The Diadem to process retainers",
+                "AutoRetainer can not process retainers from inside The Diadem.\n"
+              + "When enabled, GBR leaves the instance once a retainer is ready, runs MultiMode, then relogs back.\n"
+              + "When disabled, retainers are only processed after gathering naturally takes you out of the Diadem.",
+                GatherBuddy.Config.AutoGatherConfig.AutoRetainerLeaveDiadem,
+                b => GatherBuddy.Config.AutoGatherConfig.AutoRetainerLeaveDiadem = b);
+
         public static void DrawLifestreamCommandTextInput()
         {
             ImGui.SetNextItemWidth(150);
@@ -1511,7 +1519,7 @@ public partial class Interface
                     if (GatherBuddy.Config.AutoGatherConfig.DoReduce)
                         layout.Child.Draw(ConfigFunctions.DrawAlwaysReduceAllItemsBox);
                 }),
-            new("Wait for AutoRetainer Multi-mode AutoRetainer Threshold Delay AutoRetainer for timed nodes",
+            new("Wait for AutoRetainer Multi-mode AutoRetainer Threshold Delay AutoRetainer for timed nodes Leave The Diadem to process retainers",
                 layout =>
                 {
                     ConfigFunctions.DrawAutoretainerBox();
@@ -1519,6 +1527,7 @@ public partial class Interface
                     {
                         layout.Child.Draw(ConfigFunctions.DrawAutoretainerThreshold);
                         layout.Child.Draw(ConfigFunctions.DrawAutoretainerTimedNodeDelayBox);
+                        layout.Child.Draw(ConfigFunctions.DrawAutoretainerLeaveDiademBox);
                     }
                 }),
             new("Diadem Auto-Aethercannon",                       ConfigFunctions.DrawDiademAutoAetherCannonBox),

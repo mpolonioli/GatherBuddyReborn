@@ -362,7 +362,7 @@ namespace GatherBuddy.AutoGather
         private bool _homeWorldWarning        = false;
         private bool _autoRetainerMultiModeEnabled = false;
         private string? _originalCharacterNameWorld = null;
-        private bool _autoRetainerWasEnabledBeforeDiadem = false;
+        private bool _leavingDiademForAutoRetainer = false;
 
         public void DoAutoGather()
         {
@@ -371,28 +371,6 @@ namespace GatherBuddy.AutoGather
             {
                 _lastTerritory = currentTerritory;
                 _diademPathIndex = -1;
-                
-                var isInDiademOrFirmament = currentTerritory == Diadem.Territory.Id;
-                var wasInDiademOrFirmament = _lastTerritory == Diadem.Territory.Id;
-                
-                if (isInDiademOrFirmament && !wasInDiademOrFirmament)
-                {
-                    _autoRetainerWasEnabledBeforeDiadem = GatherBuddy.Config.AutoGatherConfig.AutoRetainerMultiMode;
-                    if (_autoRetainerWasEnabledBeforeDiadem)
-                    {
-                        GatherBuddy.Config.AutoGatherConfig.AutoRetainerMultiMode = false;
-                        GatherBuddy.Log.Information("Temporarily disabled AutoRetainer integration while in Diadem/Firmament");
-                    }
-                }
-                else if (!isInDiademOrFirmament && wasInDiademOrFirmament)
-                {
-                    if (_autoRetainerWasEnabledBeforeDiadem)
-                    {
-                        GatherBuddy.Config.AutoGatherConfig.AutoRetainerMultiMode = true;
-                        GatherBuddy.Log.Information("Re-enabled AutoRetainer integration after leaving Diadem/Firmament");
-                        _autoRetainerWasEnabledBeforeDiadem = false;
-                    }
-                }
             }
 
             // Reset the flag before checking Enabled to get correct state even if auto-gather is disabled.
@@ -2413,6 +2391,7 @@ namespace GatherBuddy.AutoGather
                         AutoRetainer.DisableAllFunctions?.Invoke();
                         _autoRetainerMultiModeEnabled = false;
                     }
+                    _leavingDiademForAutoRetainer = false;
                     return false;
                 }
 
@@ -2457,10 +2436,33 @@ namespace GatherBuddy.AutoGather
                 {
                     if (!_autoRetainerMultiModeEnabled)
                     {
+                        // AutoRetainer can not process retainers from inside instanced content such as
+                        // The Diadem: relogging/teleporting and retainer bells are unavailable there, so
+                        // simply enabling MultiMode does nothing. Leave the instance first and only enable
+                        // MultiMode once we are back outside.
+                        if (Diadem.IsInside)
+                        {
+                            // When disabled, never interrupt Diadem gathering for retainers; they are
+                            // serviced once gathering naturally takes us back out of the instance.
+                            if (!GatherBuddy.Config.AutoGatherConfig.AutoRetainerLeaveDiadem)
+                                return false;
+
+                            if (!_leavingDiademForAutoRetainer)
+                            {
+                                GatherBuddy.Log.Information("Retainers ready - leaving The Diadem before enabling AutoRetainer MultiMode");
+                                StopNavigation();
+                                LeaveTheDiadem();
+                                _leavingDiademForAutoRetainer = true;
+                            }
+                            AutoStatus = "Leaving The Diadem for retainers...";
+                            return true;
+                        }
+                        _leavingDiademForAutoRetainer = false;
+
                         var player = Dalamud.Objects.LocalPlayer;
                         if (player != null)
                             _originalCharacterNameWorld = $"{player.Name}@{player.HomeWorld.Value.Name}";
-                        
+
                         AutoRetainer.EnableMultiMode?.Invoke();
                         _autoRetainerMultiModeEnabled = true;
                     }
@@ -2475,7 +2477,8 @@ namespace GatherBuddy.AutoGather
                         AutoRetainer.DisableAllFunctions?.Invoke();
                         _autoRetainerMultiModeEnabled = false;
                     }
-                    
+                    _leavingDiademForAutoRetainer = false;
+
                     if (!string.IsNullOrEmpty(_originalCharacterNameWorld))
                     {
                         var currentPlayer = Dalamud.Objects.LocalPlayer;
