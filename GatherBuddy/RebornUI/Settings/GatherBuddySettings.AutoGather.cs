@@ -157,7 +157,8 @@ internal sealed partial class GatherBuddySettings
                 }),
                 Toggle("Diadem auto-aethercannon",
                     "Automatically target and fire the aethercannon at nearby enemies when the gauge is ready (200 or more). "
-                  + "Only fires while not pathing, with a 2 second cooldown between uses.",
+                  + "Only fires while not pathing, with a 2 second cooldown between uses. "
+                  + "Enemies not in line of sight are skipped; if a shot fails, gathering continues and it retries later.",
                     () => AutoCfg.DiademAutoAetherCannon, v => AutoCfg.DiademAutoAetherCannon = v),
                 Toggle("Diadem windmire jumps",
                     "Allows the use of windmires for jumping between islands in the Diadem, when they give a significant distance advantage over normal movement.",
