@@ -1311,7 +1311,8 @@ public partial class Interface
         public static void DrawDiademAutoAetherCannonBox()
             => DrawCheckbox("Diadem Auto-Aethercannon",
                 "Automatically target and fire aethercannon at nearby enemies when gauge is ready (≥200).\n"
-              + "Only fires while not pathing/navigating. 2-second cooldown between uses.",
+              + "Only fires while not pathing/navigating. 2-second cooldown between uses.\n"
+              + "Enemies not in line of sight are skipped; if a shot fails, gathering continues and it retries later.",
                 GatherBuddy.Config.AutoGatherConfig.DiademAutoAetherCannon,
                 b => GatherBuddy.Config.AutoGatherConfig.DiademAutoAetherCannon = b);
 

@@ -238,7 +238,7 @@ namespace GatherBuddy.AutoGather
                     _diademQueuingInProgress = false;
                     FarNodesSeenSoFar.Clear();
                     VisitedNodes.Clear();
-                    _lastAetherTarget = DateTime.MinValue;
+                    _nextAetherAttempt = DateTime.MinValue;
                     _diademPathIndex = -1;
                     _fishDetectedPlayer = false;
                     _fishWaryDetected = false;
