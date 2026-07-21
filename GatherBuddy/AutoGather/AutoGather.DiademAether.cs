@@ -3,12 +3,14 @@ using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.Types;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
+using FFXIVClientStructs.FFXIV.Common.Component.BGCollision;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using GatherBuddy.AutoGather.Helpers;
 using GatherBuddy.Helpers;
 using System;
 using System.Linq;
 using System.Numerics;
+using CSGameObject = FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject;
 
 namespace GatherBuddy.AutoGather
 {
@@ -18,11 +20,17 @@ namespace GatherBuddy.AutoGather
         private const int AetherGaugeReadyThreshold = 200;
         private const float AetherTargetScanRadius = 25f;
         private const uint AethercannonActionId = 19700;
-        private DateTime _lastAetherTarget = DateTime.MinValue;
+        private DateTime _nextAetherAttempt = DateTime.MinValue;
         private readonly TimeSpan _aetherDebounce = TimeSpan.FromSeconds(2);
-        
-        private unsafe bool IsDiademAetherGaugeReady()
+        private readonly TimeSpan _aetherFailurePenalty = TimeSpan.FromSeconds(10);
+        private bool _aetherShotFired;
+        private bool _aetherShotConfirmed;
+        private int _aetherGaugeBeforeShot;
+        private DateTime _lastAetherLosLog = DateTime.MinValue;
+
+        private unsafe bool TryGetDiademAetherGauge(out int gauge)
         {
+            gauge = 0;
             var addonPtr = Dalamud.GameGui.GetAddonByName("HWDAetherGauge");
             if (addonPtr == nint.Zero)
                 return false;
@@ -31,19 +39,24 @@ namespace GatherBuddy.AutoGather
             if (addon == null || !addon->IsVisible)
                 return false;
 
-            int currentGauge = *(int*)((nint)addonPtr + AetherGaugeOffset);
-            return currentGauge >= AetherGaugeReadyThreshold;
+            gauge = *(int*)((nint)addonPtr + AetherGaugeOffset);
+            return true;
         }
+
+        private bool IsDiademAetherGaugeReady()
+            => TryGetDiademAetherGauge(out var gauge) && gauge >= AetherGaugeReadyThreshold;
         
         private IGameObject? FindNearbyEnemyForAether()
         {
             var player = Dalamud.Objects.LocalPlayer;
-            if (player == null) 
+            if (player == null)
                 return null;
 
             Vector3 pPos = player.Position;
+            Vector3 eye  = pPos with { Y = pPos.Y + 2f };
             IGameObject? best = null;
             float bestDistSq = AetherTargetScanRadius * AetherTargetScanRadius;
+            var losRejected = 0;
 
             foreach (var obj in Dalamud.Objects)
             {
@@ -54,16 +67,39 @@ namespace GatherBuddy.AutoGather
                     continue;
 
                 float distSq = Vector3.DistanceSquared(pPos, bnpc.Position);
-                if (distSq < bestDistSq)
+                if (distSq >= bestDistSq)
+                    continue;
+
+                if (!HasLineOfSight(eye, bnpc.Position with { Y = bnpc.Position.Y + 1f }))
                 {
-                    bestDistSq = distSq;
-                    best = bnpc;
+                    ++losRejected;
+                    continue;
                 }
+
+                bestDistSq = distSq;
+                best = bnpc;
+            }
+
+            if (best == null && losRejected > 0 && DateTime.UtcNow - _lastAetherLosLog > TimeSpan.FromSeconds(5))
+            {
+                _lastAetherLosLog = DateTime.UtcNow;
+                GatherBuddy.Log.Debug($"[Diadem] {losRejected} enemies in range but none in line of sight");
             }
 
             return best;
         }
-        
+
+        private static bool HasLineOfSight(Vector3 from, Vector3 to)
+        {
+            var offset   = to - from;
+            var distance = offset.Length();
+            //Stop the ray one yalm short so grazing the target's own perch doesn't count as a block.
+            if (distance <= 1f)
+                return true;
+
+            return !BGCollisionModule.RaycastMaterialFilter(from, offset / distance, out _, distance - 1f);
+        }
+
         private bool IsValidDiademEnemy(IBattleNpc bnpc)
         {
             if (bnpc.IsDead)
@@ -77,6 +113,13 @@ namespace GatherBuddy.AutoGather
 
             return true;
         }
+
+        private void AetherShotFailed(string reason)
+        {
+            //LoS is positional: resume gathering for a while so the next attempt comes from a different spot.
+            _nextAetherAttempt = DateTime.UtcNow + _aetherFailurePenalty;
+            GatherBuddy.Log.Debug($"[Diadem] Aethercannon shot failed ({reason}), retrying in {_aetherFailurePenalty.TotalSeconds:F0}s");
+        }
         
         private unsafe void TargetByGameObject(IGameObject gameObject)
         {
@@ -84,7 +127,7 @@ namespace GatherBuddy.AutoGather
             if (targetSystem == null)
                 return;
                 
-            targetSystem->Target = (FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)gameObject.Address;
+            targetSystem->Target = (CSGameObject*)gameObject.Address;
         }
         
         private unsafe bool TryUseAetherCannon()
@@ -97,7 +140,7 @@ namespace GatherBuddy.AutoGather
                 return false;
             if (IsPathing)
                 return false;
-            if (DateTime.UtcNow - _lastAetherTarget < _aetherDebounce)
+            if (DateTime.UtcNow < _nextAetherAttempt)
                 return false;
             if (!IsDiademAetherGaugeReady())
                 return false;
@@ -108,7 +151,10 @@ namespace GatherBuddy.AutoGather
 
             var enemyId = enemy.GameObjectId;
             TargetByGameObject(enemy);
-            _lastAetherTarget = DateTime.UtcNow;
+            _nextAetherAttempt   = DateTime.UtcNow + _aetherDebounce;
+            _aetherShotFired     = false;
+            _aetherShotConfirmed = false;
+            TryGetDiademAetherGauge(out _aetherGaugeBeforeShot);
             GatherBuddy.Log.Debug($"[Diadem] Targeting enemy {enemy.Name} (ID: {enemyId}) at {enemy.Position}");
 
             TaskManager.DelayNext(100);
@@ -150,15 +196,35 @@ namespace GatherBuddy.AutoGather
                 {
                     var result = amInstance->UseAction(ActionType.Action, AethercannonActionId, targetId);
                     GatherBuddy.Log.Debug($"[Diadem] UseAction returned: {result}");
+                    if (result)
+                        _aetherShotFired = true;
+                    else
+                        AetherShotFailed("UseAction rejected the shot");
                 }
                 else
                 {
-                    GatherBuddy.Log.Debug($"[Diadem] Cannot use action, status code: {actionStatus}");
+                    AetherShotFailed($"action status code {actionStatus}");
                 }
             });
 
-            TaskManager.Enqueue(() => Dalamud.Conditions[ConditionFlag.Casting], 1000, "Wait for aethercannon cast start");
-            TaskManager.Enqueue(() => !Dalamud.Conditions[ConditionFlag.Casting], 5000, "Wait for aethercannon cast finish");
+            //The aethercannon never sets ConditionFlag.Casting, so a gauge drop is the only reliable success signal.
+            TaskManager.Enqueue(() =>
+            {
+                if (!_aetherShotFired)
+                    return true;
+
+                if (!TryGetDiademAetherGauge(out var gauge) || gauge >= _aetherGaugeBeforeShot)
+                    return false;
+
+                _aetherShotConfirmed = true;
+                GatherBuddy.Log.Debug($"[Diadem] Aethercannon shot confirmed, gauge {_aetherGaugeBeforeShot} -> {gauge}");
+                return true;
+            }, 3000, "Wait for aethercannon gauge drop");
+            TaskManager.Enqueue(() =>
+            {
+                if (_aetherShotFired && !_aetherShotConfirmed)
+                    AetherShotFailed("gauge did not drop, shot likely rejected by server");
+            }, "Check aethercannon result");
             TaskManager.DelayNext(500);
             return true;
         }
