@@ -9,6 +9,8 @@ namespace GatherBuddy.AutoHookIntegration;
 
 public class BiteTimerService
 {
+    private const string FishListFile = "fish_list.json";
+
     private readonly Dictionary<uint, BiteTimerData> _biteTimers = new();
     private bool _isLoaded;
 
@@ -17,33 +19,51 @@ public class BiteTimerService
         LoadBiteTimers(pluginConfigDirectory);
     }
 
+    private sealed class FishListEntry
+    {
+        public uint    ItemId       { get; set; }
+        public double? BiteTimeMin  { get; set; }
+        public double? BiteTimeMax  { get; set; }
+    }
+
     private void LoadBiteTimers(string pluginConfigDirectory)
     {
         try
         {
-            var biteTimersPath = FindAutoHookBiteTimersFile(pluginConfigDirectory);
-            if (biteTimersPath == null)
+            var fishListPath = FindAutoHookFishList(pluginConfigDirectory);
+            if (fishListPath == null)
             {
-                GatherBuddy.Log.Warning("[BiteTimerService] AutoHook bitetimers.json not found. Bite timers will not be available for preset generation.");
+                GatherBuddy.Log.Warning($"[BiteTimerService] AutoHook {FishListFile} not found. Bite timers will not be available for preset generation.");
                 return;
             }
 
-
-            var json = File.ReadAllText(biteTimersPath);
-            var biteTimersArray = JsonSerializer.Deserialize<List<BiteTimerData>>(json);
-
-            if (biteTimersArray == null)
+            using var stream = File.OpenRead(fishListPath);
+            var entries = JsonSerializer.Deserialize<List<FishListEntry>>(stream);
+            if (entries == null)
             {
-                GatherBuddy.Log.Error("[BiteTimerService] Failed to deserialize bitetimers.json");
+                GatherBuddy.Log.Error($"[BiteTimerService] Failed to deserialize {FishListFile}");
                 return;
             }
 
-            foreach (var biteTimer in biteTimersArray)
+            foreach (var entry in entries)
             {
-                _biteTimers[biteTimer.ItemId] = biteTimer;
+                if (entry.BiteTimeMax is not > 0 || _biteTimers.ContainsKey(entry.ItemId))
+                    continue;
+
+                var min = entry.BiteTimeMin ?? 0;
+                var max = entry.BiteTimeMax.Value;
+                _biteTimers[entry.ItemId] = new BiteTimerData
+                {
+                    ItemId     = entry.ItemId,
+                    Min        = min,
+                    Max        = max,
+                    WhiskerMin = min,
+                    WhiskerMax = max,
+                };
             }
 
             _isLoaded = true;
+            GatherBuddy.Log.Debug($"[BiteTimerService] Loaded bite timers for {_biteTimers.Count} fish from {fishListPath}");
         }
         catch (Exception ex)
         {
@@ -51,7 +71,7 @@ public class BiteTimerService
         }
     }
 
-    private string? FindAutoHookBiteTimersFile(string pluginConfigDirectory)
+    private string? FindAutoHookFishList(string pluginConfigDirectory)
     {
         try
         {
@@ -78,15 +98,15 @@ public class BiteTimerService
 
             foreach (var versionDir in versionDirs)
             {
-                var biteTimersPath = Path.Combine(versionDir, "Data", "FishData", "bitetimers.json");
+                var fishListPath = Path.Combine(versionDir, "Data", "FishData", FishListFile);
                 
-                if (File.Exists(biteTimersPath))
+                if (File.Exists(fishListPath))
                 {
-                    return biteTimersPath;
+                    return fishListPath;
                 }
             }
 
-            GatherBuddy.Log.Debug("[BiteTimerService] bitetimers.json not found in any AutoHook version directory");
+            GatherBuddy.Log.Debug($"[BiteTimerService] {FishListFile} not found in any AutoHook version directory");
             return null;
         }
         catch (Exception ex)
